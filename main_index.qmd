@@ -1,0 +1,453 @@
+---
+title: "Optimizing Loan Portfolio: Data-Driven Risk Insights"
+author: "Omotayo Ikudayisi"
+date: today
+format:
+  revealjs:
+    multiplex: true
+    footer: "[Visit my github](https://apreshill.github.io/palmerpenguins-useR-2022/)"
+    theme: ["pp.scss"]
+    slide-number: c/t
+    incremental: true
+    transition: slide
+    title-slide-attributes:
+      data-background-image: "bg.png"
+    slide-attributes:
+      data-background-image: "slidebg.png"
+    toc: true
+execute:
+  echo: false
+  warning: false
+  message: false
+code-fold: true
+---
+
+## Portfolio Overview {data-background-image="slidebg.png"}
+
+The loan portfolio reflects a dynamic balance between growth opportunities and emerging risks. With a high credit utilization ratio of 99.03% and over 2,200 active loans, the portfolio demonstrates strong demand and lending activity.
+
+However, key indicators such as elevated delinquency rates and a significant concentration of overdue risks, particularly among new clients with a 66.11% PAR30 volume share, signal the need for targeted risk management, and requiring immediate attention to maintain portfolio health and optimize risk management strategies.
+
+Strategic adjustments to cutoff scores and client screening can optimize acceptance rates while mitigating defaults and potential losses.
+
+```{r library, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(lubridate)
+library(plotly)
+library(kableExtra)
+
+# for fonts
+library(showtext)
+font_add_google("Jost", "Jost")
+showtext_auto()
+theme_set(theme_minimal(base_family = "Jost"))
+```
+
+```{r load_data_process, message=FALSE, warning=FALSE}
+data <- read.csv("real_loans.csv")
+
+data <- data %>% 
+  mutate(
+    disbursement_date = dmy_hms(disbursement_date) %>% as.Date(),
+    due_date = dmy_hms(due_date) %>% as.Date(),
+    last_payment_date = as.Date(last_payment_date, format = "%d/%m/%Y"),
+    loan_status = ifelse(loan_status == "" | is.na(loan_status), "unpaid", loan_status),
+    due_date = case_when(
+      is.na(due_date) ~ disbursement_date + days(loan_term),
+      TRUE ~ due_date
+    ),
+    late_payment_days = ifelse(
+      loan_status == 'paid' & !is.na(last_payment_date), 
+      as.numeric(difftime(last_payment_date, due_date, units = "days")),
+      ifelse(
+        loan_status != 'paid',
+        as.numeric(difftime(max(due_date, na.rm = TRUE) + 2, due_date, units = "days")),
+        NA
+      )
+    )
+  ,
+    apollo_cb_score = ifelse(is.na(apollo_cb_score), "", as.character(apollo_cb_score)),
+    apollo_cb_score_cleaned = gsub('"', '', apollo_cb_score),
+    apollo_cb_upper = as.numeric(gsub(".*-(\\d+)$", "\\1", apollo_cb_score_cleaned))
+  ) %>% 
+  select(-apollo_cb_score_cleaned) %>%
+  arrange(desc(last_payment_date))
+```
+
+## Portfolio Summary {data-background-image="slidebg.png"}
+::: columns
+::: column
+- The high credit utilization ratio signals optimal resource use which requires stringent monitoring.
+-  A significant portion of the portfolio is active (46.9%), highlighting the need to closely monitor repayment behaviors and mitigate delinquency risks.
+- The average loan size shows risk diversification shielding the portfolio from individual borrower defaults.
+- While the portfolio is highly utilized,new disbursements may face limitations unless repayments increases or additional capital is infused.
+
+:::
+
+::: column
+```{r}
+total_disbursed <- sum(data$disbursement_amount, na.rm = TRUE)
+avg_loansize <- round(total_disbursed / length(data$loan_id), 0)
+disbursed_count <- length(data$loan_id)
+active_loans <- data %>% filter(loan_status != "paid") %>% nrow()
+outstanding_balance <- sum(data$loan_amount[data$loan_status != "paid"], na.rm = TRUE)
+credit_utilization_ratio <- round((sum(data$loan_amount) / sum(data$max_offer)) * 100, 2)
+metrics_table <- tibble(
+  Metric = c("Number of Disbursed Loans", "Total Disbursed Amount", 
+             "Average Loan Size", "Current Active Loans", "Outstanding Principal Balance", "Credit Utilization Ratio"),
+  Value = c(
+    format(disbursed_count, big.mark = ","),
+    paste0("₦", format(total_disbursed, big.mark = ",")),
+    paste0("₦", format(avg_loansize, big.mark = ",")),
+    format(active_loans, big.mark = ","),
+    paste0("₦", format(outstanding_balance, big.mark = ",")),
+    paste0(format(credit_utilization_ratio, nsmall = 2), "%")
+  )
+)
+metrics_table %>%
+  kable("html", col.names = NULL, escape = FALSE) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"), font_size = 35)
+```
+:::
+:::
+
+## Trends and PAR Analysis by State  {data-background-image="slidebg.png"}
+::: columns
+::: column
+
+```{r}
+disb_trends <- data %>% 
+  group_by(disbursement_date, due_date, last_payment_date) %>% 
+  summarise(total_disbursed = sum(disbursement_amount, na.rm = TRUE), .groups = 'drop')
+
+ggplot(disb_trends) + 
+  geom_line(aes(x = disbursement_date, y = total_disbursed, color = "Disbursement"), linewidth = 1) + 
+  geom_line(aes(x = due_date, y = total_disbursed, color = "Due Date"), linewidth = 1, linetype = "dashed") + 
+  geom_line(aes(x = last_payment_date, y = total_disbursed, color = "Last Payment Date"), linewidth = 1, linetype = "dotdash") + 
+  scale_color_manual(values = c("Disbursement" = "green", "Due Date" = "blue", "Last Payment Date" = "orange")) +
+  labs(
+    title = "Comparing Transactional Trends in the Portfolio",
+    x = "Date",
+    y = "Total Amount",
+    color = "Legend"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(size = 16, angle = 45, hjust = 1),
+    legend.position = "none"
+  )
+```
+**Insights:**
+- **November Spikes**: suggest seasonal demands or economy related issues.
+- Scattered due dates reflect variability in loan terms across the portfolio.
+- **Delays**: Misalignment between due dates and last payment dates highlights delayed repayments or defaults.
+
+::: 
+::: column
+```{r}
+
+# Top 10 state distribution of PAR30 amounts
+par_state_distribution <- data %>% 
+  filter(late_payment_days >= 30) %>% 
+  group_by(state) %>% 
+  summarise(PAR30_Amount = sum(loan_amount, na.rm = TRUE), .groups = 'drop') %>% 
+  arrange(desc(PAR30_Amount)) %>% 
+  slice_head(n = 10)
+
+ggplot(par_state_distribution, aes(x = reorder(state, -PAR30_Amount), y = PAR30_Amount, fill = state)) + 
+  geom_bar(stat = "identity") + 
+  labs(
+    title = "Top 10 State Distribution of PAR30 Volume",
+    x = "State",
+    y = "PAR30 Volume"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(size = 16, angle = 45, hjust = 1),
+    legend.position = "none"
+  )
+```
+**Key States:**
+- High risks in Maharashtra, Andhra Pradesh, and Telangana.
+- States like Gujarat and Delhi also show moderate PAR30 volumes, warranting monitoring.
+
+<script>
+// Zoom-in effect on hover for visualizations
+document.querySelectorAll('img').forEach(function(img) {
+  img.style.transition = "transform 0.3s ease";
+  img.addEventListener('mouseover', function() {
+    img.style.transform = "scale(1.1)";
+  });
+  img.addEventListener('mouseout', function() {
+    img.style.transform = "scale(1)";
+  });
+});
+</script>
+
+:::
+:::
+
+## Repayment and Portfolio at Risk {data-background-image="slidebg.png"}
+
+::: columns
+::: column
+
+```{r}
+default_rate <- round(sum(data$loan_amount[data$loan_status != "paid" & data$late_payment_days > 3], na.rm = TRUE) / outstanding_balance, 2) * 100
+PAR7 <- round(sum(data$loan_amount[data$loan_status != "paid" & data$late_payment_days > 7], na.rm = TRUE), 0)
+PAR7_proportion <- round(PAR7 / outstanding_balance, 2) * 100
+PAR30_number <- data %>% filter(loan_status != "paid" & late_payment_days >= 30) %>% nrow()
+PAR30_number_proportion <- round(PAR30_number / active_loans, 2) * 100
+PAR30 <- round(sum(data$loan_amount[data$loan_status != "paid" & data$late_payment_days >= 30], na.rm = TRUE), 0)
+
+PAR30_proportion <- round(PAR30 / outstanding_balance, 2) * 100
+par_metrics <- tibble(
+  Metric = c("Previous Loan Avg Days Late", "Current Loan Avg Days Late","Delinquency Rate (0 Days)", "30-Day Delinquency Rate", 
+    "Repayment Ratio", "Default Rate", "PAR7 (Volume)", "PAR7 Volume Share", "PAR30 (Number)", "PAR30 (Number Share)", "PAR30 (Volume)", "PAR30 Volume Share"),
+  Value = c( 
+            round(mean(data$days_late_last_payment, na.rm = TRUE), 0),
+    round(mean(data$late_payment_days, na.rm = TRUE), 0), 
+    paste0(round(sum(data$FPD0 == 1, na.rm = TRUE) / nrow(data) * 100, 2), "%"),
+    paste0(round(sum(data$FPD30 == 1, na.rm = TRUE) / nrow(data) * 100, 2), "%"), 
+    paste0(round(sum(data$total_to_repay[data$loan_status == 'paid'], na.rm = TRUE) / sum(data$disbursement_amount, na.rm = TRUE) * 100, 2), "%"),
+            paste0(format(default_rate, nsmall = 2), "%"),
+            paste0("₦", format(PAR7, big.mark = ",")),
+            paste0(format(PAR7_proportion,  nsmall = 2), "%"),
+            PAR30_number, 
+            paste0(format(PAR30_number_proportion, nsmall = 2), "%"),
+            paste0("₦", format(PAR30, big.mark = ",")),
+            paste0(format(PAR30_proportion, nsmall = 2), "%")
+            )
+)
+par_metrics %>%
+  kable("html", col.names = NULL, escape = FALSE) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"),font_size = 30  # Set a smaller font size for tables 
+                )
+```
+
+:::
+
+::: column
+- A significant shift from early to delayed repayment signals emerging borrower stress; and repaid ratio, highlighting recovery challenges.
+- High delinquency rates indicate systemic repayment challenges that has escalated into defaults requiring intervention.
+- The portfolio shows a heavy concentration of risk in both short-term (PAR7) and long-term (PAR30) overdue loans, suggesting the need for immediate risk mitigation strategies.
+
+:::
+:::
+
+
+## Client Type Portfolio at Risk Share {data-background-image="slidebg.png"}
+::: rows
+::: row
+```{r}
+client_summary <- data %>% 
+  group_by(client_type) %>% 
+  summarise(
+    Count = n(),
+    users = n_distinct(user_id),
+    #Percentage = round(Count / sum(Count) * 100, 1),
+    Total_Repaid = sum(total_to_repay[loan_status == 'paid'], na.rm = TRUE),
+    PAR30_Volume_Share = ifelse(
+      sum(loan_amount[loan_status != "paid"], na.rm = TRUE) == 0,
+      0,
+      round(
+        sum(loan_amount[loan_status != "paid" & late_payment_days > 30], na.rm = TRUE) /
+        sum(loan_amount[loan_status != "paid"], na.rm = TRUE) * 100,
+        2
+      )
+    )
+  )
+
+# Display the summary table
+client_summary %>%
+  kable("html", col.names = c("Client Type", "Loans(N)", "Users(N)", "Total Repaid (₦)", "PAR30 Volume Share (%)"), escape = FALSE) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"), font_size = 30)
+
+```
+:::
+
+::: row
+- **New Clients**: Hold the majority of overdue risk with a 66.11% PAR30 Volume Share, signaling higher credit exposure and default potential among this group.
+**Returning Clients**: Lower PAR30 Volume Share at 26.46%, suggesting better repayment reliability and reduced risk.
+- **Action Point**: Strengthen risk management for new clients while expanding lending to reliable returning users.
+:::
+:::
+
+```{r}
+#Filter data for new clients only
+data_new_clients <- data %>% filter(client_type == "new")
+
+# Generate summary statistics for internal scores
+score_summary <- data_new_clients %>% 
+  summarise(
+    count = n(),
+    mean = round(mean(score_internal, na.rm = TRUE), 3),
+    std = round(sd(score_internal, na.rm = TRUE), 3),
+    min = round(min(score_internal, na.rm = TRUE), 3),
+    `25%` = round(quantile(score_internal, 0.25, na.rm = TRUE),3),
+    `50%` = round(median(score_internal, na.rm = TRUE), 3),
+    `75%` = round(quantile(score_internal, 0.75, na.rm = TRUE), 3),
+    max = round(max(score_internal, na.rm = TRUE), 3)
+  ) %>%
+  pivot_longer(everything(), names_to = "Metric", values_to = "Value")
+```
+
+## New Clients Internal Score Evaluation {data-background-image="slidebg.png"}
+
+::: rows
+::: row
+**Score Summary and Distribution Insights**: 2868 new clients were analyzed, their Internal score data points is concentrated between 0.25 and 0.37 with low variation at 0.0842 and values span from 0.13 to 0.63. Tail ends indicate smaller high and low-risk groups.
+
+:::
+
+::: row
+
+```{r, echo=FALSE}
+score_distribution_plot <- ggplot(data_new_clients, aes(x = score_internal)) +
+  geom_histogram(binwidth = 0.02, fill = "#0073C2", color = "white") +
+  labs(
+    title = "Score Distribution for New Clients",
+    x = "Internal Score",
+    y = "Frequency"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 22, hjust = 0.5, face = "bold"),
+    axis.text = element_text(size = 14),
+    axis.title = element_text(size = 16, face = "bold")
+  )
+score_distribution_plot
+```
+:::
+:::
+
+## Cutoff Strategy (New Clients Scoring) {data-background-image="slidebg.png"}
+
+::: columns
+::: column
+**Cutoff Strategy Analysis:**
+
+```{r, echo=FALSE}
+cutoff_analysis <- function(cutoff) {
+  total_clients <- nrow(data_new_clients)
+  accepted_clients <- sum(data_new_clients$score_internal >= cutoff, na.rm = TRUE)
+  defaulted_clients <- sum(data_new_clients$score_internal >= cutoff & data_new_clients$loan_status != "paid", na.rm = TRUE)
+  
+  acceptance_rate <- round((accepted_clients / total_clients) * 100, 2)
+  default_rate <- ifelse(accepted_clients > 0, round((defaulted_clients / accepted_clients) * 100, 2), 0)
+  potential_loss <- round(defaulted_clients * mean(data_new_clients$loan_amount, na.rm = TRUE), 0)
+  
+  tibble(
+    Cutoff = cutoff,
+    Accepted = accepted_clients,
+    Acceptance_Rate = paste0(acceptance_rate, "%"),
+    Default_Rate = paste0(default_rate, "%"),
+    Potential_Loss = paste0("₦", format(potential_loss, big.mark = ","))
+  )
+}
+
+cutoffs <- c(0.25, 0.30, 0.35, 0.40)
+cutoff_metrics <- map_df(cutoffs, cutoff_analysis)
+
+# Display cutoff metrics
+cutoff_metrics %>%
+  kable("html", col.names = c("Cutoff Score", "Accepted Clients", "Acceptance Rate", "Default Rate", "Potential Loss"), escape = FALSE) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"), font_size = 20)
+```
+
+
+```{r, echo=FALSE}
+cutoff_metrics_long <- cutoff_metrics %>% 
+  pivot_longer(cols = c(Acceptance_Rate, Default_Rate), names_to = "Metric", values_to = "Value") %>% 
+  mutate(Value = as.numeric(gsub("%", "", Value)))
+
+ggplot(cutoff_metrics_long, aes(x = as.factor(Cutoff), y = Value, fill = Metric, tooltip = Value)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.5) +
+  labs(
+    title = "Impact of Cutoff Strategies",
+    x = "Cutoff Score",
+    y = "Percentage"
+  ) +
+  
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
+    axis.text = element_text(size = 12)
+  )
+```
+
+:::
+
+::: column
+- Higher Cutoff, Lower Risk: Increasing the cutoff score reduces approvals but also lowers potential losses and default.
+- Optimal Balance: A cutoff score of 0.30 accepts 31% clients, balancing manageable defaults (43.76%) with reduced losses.
+- Tighter Screening: 0.40 cutoff minimizes potential losses but drastically limits accepted clients.
+- Trade-off: Lower cutoffs increase client acceptance but significantly raise risks and potential losses.
+- The visual also shows that  Higher cutoffs reduce acceptance rates but also lower default rates.
+:::
+:::
+  
+## Lending Rules for New Clients {data-background-image="slidebg.png"}
+### Proposed Lending Rules:
+
+1. **Minimum Internal Score Threshold**:
+   - **Rule**: Approve loans only for new clients with an internal score ≥ 0.30.
+   - **Impact**: Acceptance rate ~65%, default rate reduced by ~15%.
+
+2. **Loan Amount Cap**:
+   - **Rule**: Limit first-time loans to tally with client declared revenue by 30% and up to 40% if there is a valid proof
+   - **Impact**: Reduces potential losses by ~25%; builds client credit history.
+
+## Lending Rules for Returning Clients {data-background-image="slidebg.png"}
+### Proposed Lending Rules:
+
+1. **Performance-Based Loan Scaling**:
+   - **Rule**: Gradually increase loan amounts by 20% for 2 successful repayments.
+   - **Impact**: Encourages loyalty and increases portfolio size with manageable risk.
+
+2. **Penalty for Late Payments**:
+   - **Rule**: Impose a 2% penalty on payments delayed by more than 30 days.
+   - **Impact**: Promotes timely payments, reducing late occurrences by ~10%.
+
+## Rationale and Expected Impacts {data-background-image="slidebg.png"}
+
+```{r, echo=FALSE}
+rules_table <- tibble(
+  `Client Type` = c("New", "New", "Returning", "Returning"),
+  Rule = c(
+    "Minimum Internal Score ≥ 0.30",
+    "Loan Cap of ₦50,000",
+    "Performance-Based Loan Scaling",
+    "Penalty for Late Payments"
+  ),
+  Rationale = c(
+    "Reduces default risks by ensuring baseline creditworthiness.",
+    "Limits exposure to untested clients, reducing potential losses.",
+    "Encourages loyalty and rewards good repayment behavior.",
+    "Offsets delinquency costs and promotes timely payments."
+  ),
+  `Expected Impact` = c(
+    "~65% acceptance rate; ~15% reduction in default rate.",
+    "~25% reduction in potential losses; builds credit history.",
+    "Increased retention and portfolio size with manageable risk.",
+    "~10% reduction in late payments; compensates operational costs."
+  )
+)
+
+kable(rules_table, format = "html", col.names = c("Client Type", "Rule", "Rationale", "Expected Impact")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"), font_size = 20)
+```
+
+
+## Recommendations {data-background-image="slidebg.png"}
+- Implement the proposed rules for both new and returning clients.
+- Continuously monitor the impact of these rules on default rates, acceptance rates, and overall profitability.
+- Adjust thresholds and caps based on real-life business performance and market conditions.
+
+## Thank You {data-background-image="bg.png"}
+### Thank You for the opportunity!
+
+I will look forward to your feedback [LinkedIn](https://www.linkedin.com/in/omotayo-ikudayisi/).
+

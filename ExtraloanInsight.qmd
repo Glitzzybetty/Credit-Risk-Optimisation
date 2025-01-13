@@ -1,0 +1,375 @@
+---
+title: "Strategic Risk Insights: Advanced Metrics for Loan Portfolio Optimization"
+author: "Omotayo Ikudayisi"
+date: today
+format:
+  revealjs:
+    multiplex: true
+    slide-number: c/t
+    transition: slide
+    title-slide-attributes:
+      data-background-image: "bg.png"
+    slide-attributes:
+      data-background-image: "slidebg.png"
+    toc: true
+execute:
+  echo: false
+  warning: false
+  message: false
+code-fold: true
+---
+
+## Portfolio Overview
+
+ Developing it
+
+```{r library, message=FALSE, warning=FALSE}
+# Load necessary libraries
+library(tidyverse)
+library(lubridate)
+library(plotly)
+#library(scales)
+library(kableExtra) # For table formatting
+```
+
+```{r load_data_process, message=FALSE, warning=FALSE}
+# Load dataset
+data <- read.csv("fairmoney_loans.csv")
+
+# Data preprocessing
+data <- data %>% 
+  mutate(
+    # Convert date columns to appropriate Date format
+    disbursement_date = dmy_hms(disbursement_date) %>% as.Date(),
+    due_date = dmy_hms(due_date) %>% as.Date(),
+    last_payment_date = as.Date(last_payment_date, format = "%d/%m/%Y"),
+    
+    # Fill empty loan_status with 'unpaid'
+     loan_status = ifelse(loan_status == "" | is.na(loan_status), "unpaid", loan_status),
+    
+      due_date = case_when(
+    is.na(due_date) ~ disbursement_date + days(loan_term),
+    TRUE ~ due_date
+  ),
+    # Ensure the apollo_cb_score column is a string and handle missing values
+    apollo_cb_score = ifelse(is.na(apollo_cb_score), "", as.character(apollo_cb_score)),
+    apollo_cb_score_cleaned = gsub('"', '', apollo_cb_score),
+    
+    # Extract the upper bound from the range
+    apollo_cb_upper = as.numeric(gsub(".*-(\\d+)$", "\\1", apollo_cb_score_cleaned))
+  ) %>% 
+  select(-apollo_cb_score_cleaned) %>% # Drop the intermediate cleaned column
+arrange(desc(last_payment_date))  # Sort by last_payment_date in descending order
+```
+
+## Portfolio Summary {data-background-image="slidebg.png"}
+::: columns
+::: column
+
+The table reveals key hightlights of lending activity from July to December 2020
+
+-   The high credit utilization ratio signals optimal use of available lending resources but may warrant monitoring to avoid over extension.
+
+-   2,269 active loans signify ongoing client repayment responsibilities and portfolio activity.
+
+-   `The ₦2,034,700 outstanding principal balance underscores the level of credit still at risk and requiring recovery.
+:::
+
+::: column
+```{r}
+# Metrics
+# Total disbursed amount
+total_disbursed <- sum(data$disbursement_amount, na.rm = TRUE)
+# Average loan amount disbursed
+avg_loansize <- round(sum(data$disbursement_amount, na.rm = TRUE)/ length(data$loan_id),0)
+
+#Number of Disbursed Loans
+disbursed_count <- length(data$loan_id)
+
+# Count of active loans
+active_loans <- data %>% filter(loan_status != "paid") %>% nrow()
+
+#Loan Outstanding Balance
+outstanding_balance <- sum(data$loan_amount[data$loan_status !="paid"], na.rm = TRUE)
+
+#credit_utilization_ratio
+credit_utilization_ratio <- round((sum(data$loan_amount) / sum(data$max_offer)) * 100, 2)
+
+# Summary Table
+# Add Naira symbol using HTML encoding
+metrics_table <- tibble(
+  Metric = c("Number of Disbursed Loans", "Total Disbursed Amount", 
+             "Average Loan Size", "Current Active Loans", "Outstanding Principal Balance", "Credit Utilization Ratio"),
+  Value = c(
+    format(disbursed_count, big.mark = ","),
+    paste0("&#8358;", format(total_disbursed, big.mark = ",")),  # Naira symbol as HTML entity
+    paste0("&#8358;", format(avg_loansize, big.mark = ",")),
+    format(active_loans, big.mark = ","),
+    paste0("&#8358;", format(outstanding_balance, big.mark = ",")),
+    paste0(format(credit_utilization_ratio, nsmall = 2), "%")
+  )
+)
+
+# Display the table with HTML encoding
+metrics_table %>%
+  kable("html", col.names = NULL, escape = FALSE) %>%  # Allow HTML rendering
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+```
+:::
+:::
+
+## Loan Disbursement Insights
+
+```{r}
+# Disbursement trends over time with due_date and last_payment_date
+disb_trends <- data %>% 
+  group_by(disbursement_date, due_date, last_payment_date) %>% 
+  summarise(total_disbursed = sum(disbursement_amount, na.rm = TRUE), .groups = 'drop')
+
+# Plot disbursement trends with additional dates
+ggplot(disb_trends) + 
+  geom_line(aes(x = disbursement_date, y = total_disbursed, color = "Disbursement"), linewidth = 1) + 
+  geom_line(aes(x = due_date, y = total_disbursed, color = "Due Date"), linewidth = 1, linetype = "dashed") + 
+  geom_line(aes(x = last_payment_date, y = total_disbursed, color = "Last Payment Date"), linewidth = 1, linetype = "dotdash") + 
+  scale_color_manual(values = c("Disbursement" = "green", "Due Date" = "blue", "Last Payment Date" = "purple")) +
+  labs(
+    title = "Disbursement Trends Alongside Due Date and Last Payment Date",
+    x = "Date",
+    y = "Total Amount",
+    color = "Legend"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold")
+  )
+```
+
+```{r}
+# Average loan term and amount per client type
+client_disb <- data %>% 
+  group_by(client_type) %>% 
+  summarise(
+    `Average Loan Term (days)` = round(mean(loan_term, na.rm = TRUE), 1),
+    `Average Loan Amount` = round(mean(disbursement_amount, na.rm = TRUE), 1)
+  )
+
+# Table
+client_disb %>%
+  kable() %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+## Repayment Performance and Delinquency
+
+```{r}
+# Get the maximum due_date in the dataset
+#data$due_date <- as.Date(data$due_date, origin = "1970-01-01")
+
+max_due_date <- max(data$due_date, na.rm = TRUE)
+
+# Calculate late_payment_days based on loan_status
+data$late_payment_days <- ifelse(
+  data$loan_status == 'paid' & !is.na(data$last_payment_date), 
+  as.numeric(difftime(data$last_payment_date, data$due_date, units = "days")),
+  ifelse(
+    data$loan_status != 'paid',
+   (as.numeric(difftime(max_due_date + 2, data$due_date, units = "days"))),
+    NA
+  )
+)
+
+# Average days late for last payments
+currentLoan_avg_days_late <- round(mean(data$late_payment_days, na.rm = TRUE), 1)
+prevLoan_avg_days_late <- round(mean(data$days_late_last_payment, na.rm = TRUE), 1)
+
+
+# Ratio of disbursed amount to total repayment collected
+total_repaid <- sum(data$total_to_repay[data$loan_status == 'paid'], na.rm = TRUE)
+repayment_ratio <- round(total_repaid / total_disbursed, 2)
+
+# Delinquency metrics
+delinquency_rate <- round(sum(data$FPD0 == 1, na.rm = TRUE) / nrow(data), 2)
+thirty_day_delinquency_rate <- round(sum(data$FPD30 == 1, na.rm = TRUE) / nrow(data), 2)
+
+# Print metrics
+cat("Assumed Date of Analysis considered is :", format(max(data$due_date, na.rm = TRUE), "%Y-%m-%d"), "\n")
+
+# Table
+repayment_metrics <- tibble(
+  Metric = c("Previous Loan Avg Days Late", "Current Loan Avg Days Late",
+             "Delinquency Rate (0 Days)", "30-Day Delinquency Rate", 
+             "Repayment Ratio"),
+  Value = c(prevLoan_avg_days_late, currentLoan_avg_days_late, 
+            delinquency_rate, thirty_day_delinquency_rate, 
+            repayment_ratio)
+)
+
+repayment_metrics %>%
+  kable() %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+## Portfolio at Risk (PAR) Metrics
+
+```{r}
+# Default rate
+default_rate <- round(sum(data$loan_amount[data$loan_status != "paid" & data$late_payment_days > 3], na.rm = TRUE) / outstanding_balance, 2)
+
+# PAR metrics
+PAR7 <- round(sum(data$loan_amount[data$loan_status != "paid" & data$late_payment_days > 7], na.rm = TRUE),0)
+PAR7_proportion <- round(PAR7 / outstanding_balance, 2)
+
+# Calculate PAR30 by Volume
+
+PAR30_number <- data %>% filter(loan_status != "paid" & late_payment_days >= 30) %>% nrow()
+
+PAR30_number_proportion <- round(PAR30_number/ active_loans, 2)
+
+PAR30 <- round(sum(data$loan_amount[data$loan_status != "paid" & data$late_payment_days >= 30], na.rm = TRUE), 0)
+  
+PAR30_proportion <- round(PAR30/ outstanding_balance, 2)
+
+par_metrics <- tibble(
+Metric = c("Default Rate", "PAR7 (Volume)", "PAR7 Volume Share", "PAR30 (Number)", "PAR30 (Number Share)", "PAR30 (Volume)", "PAR30 Volume Share"),
+Value = c(default_rate, PAR7, PAR7_proportion, PAR30_number, PAR30_number_proportion, PAR30, PAR30_proportion)
+)
+
+par_metrics %>%
+  kable() %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+
+## First Payment Delays (FPD) Trends
+
+```{r  warning=FALSE}
+# FPD proportions
+fpd_summary <- data %>% 
+  select(FPD0, FPD3, FPD7, FPD15, FPD30) %>% 
+  pivot_longer(cols = everything(), names_to = "FPD", values_to = "value") %>% 
+  filter(!is.na(value)) %>% 
+  count(FPD, value) %>% 
+  group_by(FPD) %>% mutate(percentage = n / sum(n))
+
+# Plot FPD trends
+plot_ly(fpd_summary, x = ~FPD, y = ~percentage, type = "bar", color = ~factor(value)) %>% layout(title = "FPD Trends")
+```
+
+
+
+
+## Geographical Loan Performance
+
+```{r}
+# Generate table for loan performance by state
+# Create the summary table
+geo_summary <- data %>% 
+  group_by(state) %>% 
+  summarise(
+    Total_Disbursed = sum(disbursement_amount, na.rm = TRUE), 
+    Total_Repaid = sum(total_to_repay[loan_status == 'paid'], na.rm = TRUE),
+    PAR30_Volume_Share = ifelse(
+      sum(loan_amount[loan_status != "paid"], na.rm = TRUE) == 0,
+      0,
+      round(
+        sum(loan_amount[loan_status != "paid" & late_payment_days > 30], na.rm = TRUE) /
+        sum(loan_amount[loan_status != "paid"], na.rm = TRUE) * 100,
+        2
+      )
+    )
+  )
+
+# Format PAR30_Volume_Share as a percentage and replace NA values
+geo_summary <- geo_summary %>%
+  mutate(PAR30_Volume_Share = paste0(format(PAR30_Volume_Share, nsmall = 2), "%"))
+
+# Create a styled table
+geo_summary %>%
+  kable("html", col.names = c("State", "Total Disbursed", "Total Repaid", "PAR30 Volume Share")) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = F
+  ) %>%
+  row_spec(0, bold = TRUE, background = "#f2f2f2")
+
+```
+
+## Revenue vs. Loan Offer Analysis
+
+```{r}
+# Declared revenue vs. requested and disbursed amounts
+revenue_analysis <- data %>% 
+  summarise(avg_declared_revenue = mean(declared_revenue_national_currency, na.rm = TRUE), 
+            avg_requested = mean(requested_amount, na.rm = TRUE), 
+            avg_disbursed = mean(disbursement_amount, na.rm = TRUE))
+
+# Correlation between credit limit and repayment behavior
+credit_repayment_corr <- cor(data$max_offer, data$total_to_repay, use = "complete.obs")
+
+# Print analysis
+print(revenue_analysis)
+cat("Correlation of Credit Limit with Expected Repayment:", credit_repayment_corr, "\n")
+```
+
+## Client Demographics and Insights
+
+```{r}
+client_summary <- data %>% 
+  group_by(client_type) %>% 
+  summarise(
+    Count = n(),
+    users = n_distinct(user_id),
+    #Percentage = round(Count / sum(Count) * 100, 1),
+    Total_Repaid = sum(total_to_repay[loan_status == 'paid'], na.rm = TRUE),
+    PAR30_Volume_Share = ifelse(
+      sum(loan_amount[loan_status != "paid"], na.rm = TRUE) == 0,
+      0,
+      round(
+        sum(loan_amount[loan_status != "paid" & late_payment_days > 30], na.rm = TRUE) /
+        sum(loan_amount[loan_status != "paid"], na.rm = TRUE) * 100,
+        2
+      )
+    )
+  )
+
+# Display the summary table
+client_summary %>%
+  kable("html", col.names = c("Client Type", "Loans(N)", "Users(N)", "Total Repaid (₦)", "PAR30 Volume Share (%)"), escape = FALSE) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"), font_size = 12)
+
+```
+
+```{r}
+
+# Professional categories, gender, age, and marital status breakdown
+profession_summary <- data %>% count(professional_status)
+gender_summary <- data %>% count(gender)
+age_summary <- data %>% summarise(mean_age = mean(age_year, na.rm = TRUE))
+marital_status_summary <- data %>% count(marital_status)
+
+# Print summaries
+
+print(profession_summary)
+print(gender_summary)
+print(age_summary)
+print(marital_status_summary)
+```
+
+## Credit Risk Analysis
+
+```{r}
+# Average Apollo CB score and internal scores
+avg_cb_score <- mean(data$apollo_cb_upper, na.rm = TRUE)
+avg_internal_score <- mean(data$score_internal, na.rm = TRUE)
+#sum(data$total_to_repay[data$loan_status == 'paid'], na.rm = TRUE)
+
+# Correlation of credit bureau scores with repayment behavior
+score_correlation <- cor(data$apollo_cb_upper[data$loan_status == 'paid'], data$total_to_repay[data$loan_status == 'paid'], use = "complete.obs")
+
+# Print metrics
+cat("Average Apollo CB Score:", avg_cb_score, "\n")
+cat("Average Internal Score:", avg_internal_score, "\n")
+cat("Correlation of Apollo CB Score with Repayment:", score_correlation, "\n")
+```

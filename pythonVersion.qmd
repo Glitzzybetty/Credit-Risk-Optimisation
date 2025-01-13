@@ -1,0 +1,452 @@
+---
+title: "Loan Portfolio and Risk Analysis"
+subtitle: "<br>Facilitating Loan Decisioning<br/>"
+author: "Omotayo Ikudayisi"
+date: today
+format:
+  revealjs:
+    slide-level: 2
+    slide-number: c/t
+    transition: slide
+    footer: "Senior Risk Analyst Report"
+    title-slide-attributes:
+      data-background-image: "bg.png"
+    slide-attributes:
+      data-background-image: "slidebg.png"
+    toc: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+
+## Loan Performance Summary {data-background-image="slidebg.png"}
+
+The loan performance reveals di.
+
+```{python load_library}
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+```
+
+```{python load_data}
+# Load the dataset
+data = pd.read_csv("fairmoney_loans.csv")
+# Sort the data by a specific column (e.g., 'due_date')
+data = data.sort_values(by='last_payment_date', ascending=False)
+```
+
+```{python clean_and_processData}
+#Function to clean, process and engineer new features to the data
+def process_loan_data(data):
+    """
+    Process loan data to handle missing values, compute overdue days,
+    and classify default statuses.
+    
+    Args:
+        data (pd.DataFrame): The input DataFrame containing loan data.
+        
+    Returns:
+        pd.DataFrame: The processed DataFrame.
+    """
+    # Ensure 'disbursement_date' and other date columns are in datetime format
+    data['disbursement_date'] = pd.to_datetime(data['disbursement_date'], format='%d/%m/%Y %H:%M')
+    data['due_date'] = pd.to_datetime(data['due_date'], format='%d/%m/%Y %H:%M')
+    data['last_payment_date'] = pd.to_datetime(data['last_payment_date'], format='%d/%m/%Y')
+    
+    #fill empty loan status as unpaid
+    data['loan_status'].apply(lambda x: 'unpaid' if pd.isna(x) or x == '' else x)
+    
+    # Fill missing due_date values using loan term
+    data['due_date'] = data.apply(
+        lambda row: row['disbursement_date'] + pd.Timedelta(days=row['loan_term']) 
+        if pd.isnull(row['due_date']) else row['due_date'], 
+        axis=1
+    )
+    
+    # Ensure the apollo_cb_score column is a string and handle missing values
+    data['apollo_cb_score'] = data['apollo_cb_score'].astype(str).fillna('')
+    data['apollo_cb_score_cleaned'] = data['apollo_cb_score'].str.strip('"')
+    
+    # Extract the upper bound from the range
+    data['apollo_cb_upper'] = data['apollo_cb_score_cleaned'].str.extract(r'-(\d+)$').astype(float)
+    data.drop(columns=['apollo_cb_score_cleaned'], inplace=True)
+  
+    
+    return data
+
+df = process_loan_data(data)
+# Save the cleaned dataset
+df.to_csv("processdf.csv", index=False)
+```
+
+```{r load_datato_R_library, message=FALSE, warning=FALSE}
+#import important libraries for data cleaning and exploration
+library(flexdashboard)
+#library(tidyverse)  #helps wrangle data
+#library(lubridate)  #helps wrangle date attributes
+library(ggplot2)  #helps visualize data
+library(plotly)
+library(DescTools)
+
+data <-read.csv("processdf.csv")
+```
+
+```{python MetricsCalculation}
+# Metrics Calculation
+metrics = {}
+
+# 1. Portfolio Overview
+metrics['total_loans_disbursed'] = len(df['loan_id'].unique())
+metrics['total_disbursed_amount'] = df['disbursement_amount'].sum()
+
+# 2. Loan Repayment Performance
+metrics['repayment_rate'] = df[df['loan_status'] == 'paid'].shape[0] / metrics['total_loans_disbursed'] * 100
+metrics['delinquency_rate'] = df[df['FPD0'] > 0].shape[0] / metrics['total_loans_disbursed'] * 100
+metrics['30+_day_delinquency_rate'] = df[df['FPD30'] > 0].shape[0] / metrics['total_loans_disbursed'] * 100
+
+# 3. Loan Quality
+metrics['max_days_late'] = df['current_overdue_days'].max()
+metrics['average_loan_amount'] = df['loan_amount'].mean()
+metrics['average_loan_size'] = metrics['total_disbursed_amount'] / metrics['total_loans_disbursed']
+
+# 4. Client Segmentation
+metrics['Number_of_Users'] = len(df['user_id'].unique())
+metrics['percent_new_clients'] = df[df['client_type'] == 'new'].shape[0] / metrics['total_loans_disbursed'] * 100
+metrics['percent_returning_clients'] = 100 - metrics['percent_new_clients']
+
+# 5. Risk Indicators
+metrics['average_internal_credit_score'] = df['score_internal'].mean()
+metrics['average_credit_bureau_score'] = df['apollo_cb_upper'].mean()
+metrics['average_declared_revenue'] = df['declared_revenue_national_currency'].mean()
+
+# 6. Loan Tenure Analysis
+metrics['Frequent_loan_term'] = df['loan_term'].mode()
+
+# 7. State-Wise Performance
+statewise = df.groupby('state').agg({
+    'disbursement_amount': 'sum',
+    'loan_id': 'count',
+    'FPD0': lambda x: (x > 0).sum() / len(x) * 100  # Default rate
+}).rename(columns={'loan_id': 'loan_count', 'FPD0': 'default_rate'})
+metrics['statewise_performance'] = statewise.reset_index()
+
+# 8. Channel Performance
+channel_performance = df.groupby('acquisition_channel').agg({
+    'disbursement_amount': 'sum',
+    'loan_id': 'count',
+    'loan_status': lambda x: (x == 'paid').sum() / len(x) * 100
+}).rename(columns={'loan_id': 'loan_count', 'loan_status': 'repayment_rate'})
+metrics['channel_performance'] = channel_performance.reset_index()
+
+# 9. Concentration Risk
+top_borrowers = df.groupby('user_id')['loan_amount'].sum().sort_values(ascending=False).head(5)
+metrics['top_5_borrower_concentration'] = top_borrowers.sum() / df['loan_amount'].sum() * 100
+
+# 10. Default Rate
+metrics['default_rate'] = df[df['default_status'] == 'default'].shape[0] / metrics['total_loans_disbursed'] * 100
+
+# 11. Credit Utilization Ratio
+metrics['credit_utilization_ratio'] = df['loan_amount'].sum() / df['max_offer'].sum() * 100
+
+# 12. Exposure Analysis (Outstanding Loan Portfolio)
+metrics['total_outstanding_principal'] = df[(df['loan_status'] == 'unpaid') | (df['loan_status'] == 'partly_paid')]['loan_amount'].sum()
+
+metrics['total_loans_outstanding'] = len(df[(df['loan_status'] == 'unpaid') | (df['loan_status'] == 'partly_paid')]['loan_id'].unique())
+
+metrics[current_loans_overdue_count] = len(df[(df['loan_status'] == 'unpaid') | (df['loan_status'] == 'partly_paid') & (df['current_overdue_days'] > 0)] ['loan_id'].unique())
+
+metrics[current_loans_overdue_sum] = df[(df['loan_status'] == 'unpaid') | (df['loan_status'] == 'partly_paid') & (df['current_overdue_days'] > 0) ]['loan_amount'].sum()
+
+metrics[PAR1_Number] = metrics[current_loans_overdue_count] / metrics['total_loans_outstanding']
+
+metrics[PAR1_Volume] = metrics[current_loans_overdue_sum] / metrics['total_outstanding_principal']
+
+# Print or return metrics
+for key, value in metrics.items():
+    if isinstance(value, pd.DataFrame):
+        print(f"{key}:\n{value}\n")
+    else:
+        print(f"{key}: {value}")
+```
+
+```{python}
+# Metrics Calculation
+metrics = {}
+
+# 1. Portfolio Overview
+metrics['total_loans_disbursed'] = len(df['loan_id'].unique())
+metrics['total_disbursed_amount'] = df['disbursement_amount'].sum()
+
+# 2. Loan Repayment Performance
+metrics['repayment_rate'] = (
+    df[df['loan_status'] == 'paid'].shape[0] / metrics['total_loans_disbursed'] * 100
+    if metrics['total_loans_disbursed'] > 0 else 0
+)
+metrics['delinquency_rate'] = (
+    df[df['FPD0'] > 0].shape[0] / metrics['total_loans_disbursed'] * 100
+    if metrics['total_loans_disbursed'] > 0 else 0
+)
+metrics['30+_day_delinquency_rate'] = (
+    df[df['FPD30'] > 0].shape[0] / metrics['total_loans_disbursed'] * 100
+    if metrics['total_loans_disbursed'] > 0 else 0
+)
+
+# 3. Loan Quality
+metrics['max_days_late'] = df['current_overdue_days'].max()
+metrics['average_loan_amount'] = df['loan_amount'].mean()
+metrics['average_loan_size'] = (
+    metrics['total_disbursed_amount'] / metrics['total_loans_disbursed']
+    if metrics['total_loans_disbursed'] > 0 else 0
+)
+
+# 4. Client Segmentation
+metrics['Number_of_Users'] = len(df['user_id'].unique())
+metrics['percent_new_clients'] = (
+    df[df['client_type'] == 'new'].shape[0] / metrics['total_loans_disbursed'] * 100
+    if metrics['total_loans_disbursed'] > 0 else 0
+)
+metrics['percent_returning_clients'] = 100 - metrics['percent_new_clients']
+
+# 5. Risk Indicators
+metrics['average_internal_credit_score'] = df['score_internal'].mean()
+metrics['average_credit_bureau_score'] = df['apollo_cb_upper'].mean()
+metrics['average_declared_revenue'] = df['declared_revenue_national_currency'].mean()
+
+# 6. Loan Tenure Analysis
+metrics['Frequent_loan_term'] = df['loan_term'].mode().iloc[0] if not df['loan_term'].mode().empty else None
+
+# 7. State-Wise Performance
+statewise = df.groupby('state').agg({
+    'disbursement_amount': 'sum',
+    'loan_id': 'count',
+    'FPD0': lambda x: (x > 0).sum() / len(x) * 100  # Default rate
+}).rename(columns={'loan_id': 'loan_count', 'FPD0': 'default_rate'})
+metrics['statewise_performance'] = statewise.reset_index()
+
+# 8. Channel Performance
+channel_performance = df.groupby('acquisition_channel').agg({
+    'disbursement_amount': 'sum',
+    'loan_id': 'count',
+    'loan_status': lambda x: (x == 'paid').sum() / len(x) * 100
+}).rename(columns={'loan_id': 'loan_count', 'loan_status': 'repayment_rate'})
+metrics['channel_performance'] = channel_performance.reset_index()
+
+# 9. Concentration Risk
+top_borrowers = df.groupby('user_id')['loan_amount'].sum().sort_values(ascending=False).head(5)
+metrics['top_5_borrower_concentration'] = (
+    top_borrowers.sum() / df['loan_amount'].sum() * 100
+    if df['loan_amount'].sum() > 0 else 0
+)
+
+# 10. Default Rate
+metrics['default_rate'] = (
+    df[df['default_status'] == 'default'].shape[0] / metrics['total_loans_disbursed'] * 100
+    if metrics['total_loans_disbursed'] > 0 else 0
+)
+
+# 11. Credit Utilization Ratio
+metrics['credit_utilization_ratio'] = (
+    df['loan_amount'].sum() / df['max_offer'].sum() * 100
+    if df['max_offer'].sum() > 0 else 0
+)
+
+# 12. Exposure Analysis (Outstanding Loan Portfolio)
+outstanding_loans = df[
+    (df['loan_status'].isin(['unpaid', 'partly_paid']))
+]
+metrics['total_outstanding_principal'] = outstanding_loans['loan_amount'].sum()
+metrics['total_loans_outstanding'] = len(outstanding_loans['loan_id'].unique())
+
+current_loans_overdue = outstanding_loans[outstanding_loans['current_overdue_days'] > 0]
+metrics['current_loans_overdue_count'] = len(current_loans_overdue['loan_id'].unique())
+metrics['current_loans_overdue_sum'] = current_loans_overdue['loan_amount'].sum()
+
+metrics['PAR1_Number'] = (
+    metrics['current_loans_overdue_count'] / metrics['total_loans_outstanding']
+    if metrics['total_loans_outstanding'] > 0 else 0
+)
+metrics['PAR1_Volume'] = (
+    metrics['current_loans_overdue_sum'] / metrics['total_outstanding_principal']
+    if metrics['total_outstanding_principal'] > 0 else 0
+)
+
+# Print or return metrics
+for key, value in metrics.items():
+    if isinstance(value, pd.DataFrame):
+        print(f"{key}:\n{value}\n")
+    else:
+        print(f"{key}: {value}")
+
+```
+
+```{python}
+# Select the desired metrics automatically
+metric_values = [
+    f"{metrics['total_loans_disbursed']:.1f}",
+    f"₦{metrics['total_disbursed_amount']:.1f}",
+    f"{metrics['total_loans_outstanding']:.1f}",
+    f"₦{metrics['total_outstanding_principal']:.1f}",
+    f"{metrics['repayment_rate']:.1f}%",
+    f"{metrics['delinquency_rate']:.1f}%",
+    f"{metrics['max_days_late']:.1f}",
+    f"${metrics['average_loan_size']:.1f}"
+]
+
+# Create a DataFrame for metrics where the keys are the metric names
+metrics_df = pd.DataFrame({
+    "Metric": [
+        'total_loans_disbursed',
+        'total_disbursed_amount',
+        'total_loans_outstanding',
+        'total_outstanding_principal',
+        'repayment_rate',
+        'delinquency_rate',
+        'max_days_late',
+        'average_loan_size'
+    ],
+    "Value": metric_values
+})
+
+# Print the DataFrame
+#print(metrics_df)
+```
+
+```{python}
+
+# Select the desired metrics automatically
+metric_values = [
+    f"{metrics['total_loans_disbursed']:.1f}",
+    f"₦{metrics['total_disbursed_amount']:.1f}",
+    f"{metrics['total_loans_outstanding']:.1f}",
+    f"₦{metrics['total_outstanding_principal']:.1f}",
+    f"{metrics['repayment_rate']:.1f}%",
+    f"{metrics['delinquency_rate']:.1f}%",
+    f"{metrics['max_days_late']:.1f}",
+    f"${metrics['average_loan_size']:.1f}"
+]
+
+# Create a DataFrame for metrics where the keys are the metric names
+metrics_df = pd.DataFrame({
+    "Metric": [
+        'total_loans_disbursed',
+        'total_disbursed_amount',
+        'total_loans_outstanding',
+        'total_outstanding_principal',
+        'repayment_rate',
+        'delinquency_rate',
+        'max_days_late',
+        'average_loan_size'
+    ],
+    "Value": metric_values
+})
+
+# Print the DataFrame
+#print(metrics_df)
+```
+
+## Loan Porfolio Overview
+
+::: columns
+::: column
+
+```{python portTable}
+# Create a styled horizontal table with metrics above and values below
+table_fig = go.Figure(
+    data=[
+        go.Table(
+            header=dict(
+                values=metrics_df["Metric"].tolist(),
+                fill_color="paleturquoise",
+                align="center",
+                font=dict(size=14, color="black"),
+            ),
+            cells=dict(
+                values=metrics_df["Value"].tolist(),
+                fill_color="lavender",
+                align="center",
+                font=dict(size=12, color="black"),
+            ),
+        )
+    ]
+)
+
+# Show the table
+table_fig.show()
+```
+
+:::
+
+::: column
+
+```{python}
+
+# Create a line plot for disbursement amounts
+line_fig = px.line(
+    df,
+    x="disbursement_date",
+    y="disbursement_amount",
+    title="Monthly Disbursement Amounts",
+    labels={"disbursement_date": "Month-Year", "disbursement_amount": "Disbursed ($)"},
+)
+
+# Show both figures
+line_fig.show()
+```
+
+:::
+:::
+
+## Dashboard: Portfolio Overview {data-background-color="#f0f0f0"}
+```{r}
+valueBox(
+  value = nrow(data),
+  caption = "Total Loans",
+  icon = "fa-line-chart"
+)
+```
+
+```{r}
+valueBox(
+  value = sum(data$disbursement_amount, na.rm = TRUE),
+  caption = "Total Disbursed Amount",
+  icon = "fa-dollar"
+)
+```
+
+```{r}
+valueBox(
+  value = round(mean(data$current_overdue_days, na.rm = TRUE), 1),
+  caption = "Average Days Late",
+  icon = "fa-clock-o"
+)
+```
+
+
+```{r}
+ggplot(data, aes(x = month(disbursement_date), y = disbursement_amount)) +
+  geom_line() +
+  labs(title = "Loan Disbursement Over Time", x = "Date", y = "Amount")
+```
+
+```{r} 
+ggplot(data, aes(x = disbursement_date, y = current_overdue_days)) + geom_line() + labs(title = "Overdue Days Over Time", x = "Date", y = "Days Late") 
+``` 
+
+
+## new part
+```{python}
+df.head()
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
