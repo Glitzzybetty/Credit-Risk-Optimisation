@@ -15,26 +15,28 @@ format:
     slide-attributes:
       data-background-image: "slidebg.png"
     toc: true
+  pptx: default
 execute:
   echo: false
   warning: false
   message: false
-code-fold: true
 ---
 
+
 ## Portfolio Overview {data-background-image="slidebg.png"}
+The loan portfolio showcases a dynamic interplay between growth opportunities and emerging risks, capturing loan performance during the second half of 2020—a period significantly impacted by the economic disruptions of the pandemic. With a high credit utilization ratio of 99.03% and over 2,200 active loans, the portfolio highlights robust demand and lending activity.
 
-The loan portfolio reflects a dynamic balance between growth opportunities and emerging risks. With a high credit utilization ratio of 99.03% and over 2,200 active loans, the portfolio demonstrates strong demand and lending activity.
+However, elevated delinquency rates and a substantial concentration of overdue risks, particularly among new clients with a 66.11% PAR30 volume share, underscore the urgent need for targeted interventions to safeguard portfolio health and enhance risk management.
 
-However, key indicators such as elevated delinquency rates and a significant concentration of overdue risks, particularly among new clients with a 66.11% PAR30 volume share, signal the need for targeted risk management, and requiring immediate attention to maintain portfolio health and optimize risk management strategies.
-
-Strategic adjustments to cutoff scores and client screening can optimize acceptance rates while mitigating defaults and potential losses.
+Proactive strategic adjustments to cutoff scores, refined client screening processes, and tailored lending strategies can balance acceptance rates, mitigate defaults, and minimize potential losses, ensuring sustainable growth and long-term resilience in a challenging economic environment.
 
 ```{r library, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(lubridate)
 library(plotly)
 library(kableExtra)
+library(knitr)
+opts_knit$set(webshot = TRUE)
 
 # for fonts
 library(showtext)
@@ -135,7 +137,7 @@ ggplot(disb_trends) +
   theme(
     plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
     axis.text.x = element_text(size = 16, angle = 45, hjust = 1),
-    legend.position = "none"
+    legend.position = "bottom"
   )
 ```
 **Insights:**
@@ -278,6 +280,26 @@ client_summary %>%
 ```{r}
 #Filter data for new clients only
 data_new_clients <- data %>% filter(client_type == "new")
+# Calculate revenue quantiles for thresholds
+revenue_thresholds <- data_new_clients %>%
+  summarise(
+    quantile_25_revenue = quantile(declared_revenue_national_currency, 0.25, na.rm = TRUE),
+    median_revenue = median(declared_revenue_national_currency, na.rm = TRUE)
+  )
+
+# Extract quantile values
+quantile_25_revenue <- revenue_thresholds$quantile_25_revenue
+median_revenue <- revenue_thresholds$median_revenue
+
+# Define recommended loan thresholds based on revenue
+data_new_clients <- data_new_clients %>%
+  mutate(
+    recommended_loan = case_when(
+      declared_revenue_national_currency < quantile_25_revenue ~ declared_revenue_national_currency * 0.20, # High risk
+      declared_revenue_national_currency < median_revenue ~ declared_revenue_national_currency * 0.50, # Moderate risk
+      declared_revenue_national_currency >= median_revenue ~ declared_revenue_national_currency * 0.75 # Low risk
+    )
+  )
 
 # Generate summary statistics for internal scores
 score_summary <- data_new_clients %>% 
@@ -314,9 +336,8 @@ score_distribution_plot <- ggplot(data_new_clients, aes(x = score_internal)) +
   ) +
   theme_minimal() +
   theme(
-    plot.title = element_text(size = 22, hjust = 0.5, face = "bold"),
-    axis.text = element_text(size = 14),
-    axis.title = element_text(size = 16, face = "bold")
+    plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
+    axis.text = element_text(size = 12)
   )
 score_distribution_plot
 ```
@@ -333,7 +354,7 @@ score_distribution_plot
 cutoff_analysis <- function(cutoff) {
   total_clients <- nrow(data_new_clients)
   accepted_clients <- sum(data_new_clients$score_internal >= cutoff, na.rm = TRUE)
-  defaulted_clients <- sum(data_new_clients$score_internal >= cutoff & data_new_clients$loan_status != "paid", na.rm = TRUE)
+  defaulted_clients <- sum(data_new_clients$score_internal >= cutoff & data_new_clients$loan_status != "paid" & data_new_clients$late_payment_days > 7, na.rm = TRUE)
   
   acceptance_rate <- round((accepted_clients / total_clients) * 100, 2)
   default_rate <- ifelse(accepted_clients > 0, round((defaulted_clients / accepted_clients) * 100, 2), 0)
@@ -363,43 +384,116 @@ cutoff_metrics_long <- cutoff_metrics %>%
   pivot_longer(cols = c(Acceptance_Rate, Default_Rate), names_to = "Metric", values_to = "Value") %>% 
   mutate(Value = as.numeric(gsub("%", "", Value)))
 
-ggplot(cutoff_metrics_long, aes(x = as.factor(Cutoff), y = Value, fill = Metric, tooltip = Value)) +
-  geom_bar(stat = "identity", position = "dodge", width = 0.5) +
+# Define custom colors for the metrics
+metric_colors <- c("Acceptance_Rate" = "green", "Default_Rate" = "red")
+
+# Plot the trade-offs
+cutoff_plot <- ggplot(cutoff_metrics_long, aes(x = as.factor(Cutoff), y = Value, fill = Metric)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = metric_colors) +
   labs(
-    title = "Impact of Cutoff Strategies",
+    title = "Cutoff Trade-offs: Acceptance vs Default Rates",
     x = "Cutoff Score",
-    y = "Percentage"
+    y = "Percentage",
+    fill = "Metric"
   ) +
-  
   theme_minimal() +
   theme(
     plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
-    axis.text = element_text(size = 12)
+    axis.text.x = element_text(size = 12),
+    legend.position = "bottom"
   )
-```
 
+cutoff_plot
+```
+The visual shows that  Higher cutoffs reduce acceptance rates but also lower default rates
 :::
 
 ::: column
-- Higher Cutoff, Lower Risk: Increasing the cutoff score reduces approvals but also lowers potential losses and default.
-- Optimal Balance: A cutoff score of 0.30 accepts 31% clients, balancing manageable defaults (43.76%) with reduced losses.
-- Tighter Screening: 0.40 cutoff minimizes potential losses but drastically limits accepted clients.
-- Trade-off: Lower cutoffs increase client acceptance but significantly raise risks and potential losses.
-- The visual also shows that  Higher cutoffs reduce acceptance rates but also lower default rates.
+- **Key Observations**:
+  - Lower cutoffs (**0.25**) maximize growth but expose the portfolio to higher risks and potential losses.
+  - Higher cutoffs (**0.40**) minimize potential losses but significantly reduce the number of clients accepted.
+  - **Cutoff 0.30** provides a balanced strategy:
+    - Acceptance Rate: **31.00%**.
+    - Default Rate: **41.51%**.
+    - Potential Loss: **₦274,936**.
+
+- **Considerations for Grace Period**:
+  - This analysis reflects a grace period of 7 days, adjusting for late payments in the pandemic year (2020).
+  - Helps account for temporary repayment delays without unfairly penalizing clients.
+
 :::
 :::
   
-## Lending Rules for New Clients {data-background-image="slidebg.png"}
-### Proposed Lending Rules:
+## New Clients(Proposed) Lending Rules {data-background-image="slidebg.png"}
 
 1. **Minimum Internal Score Threshold**:
    - **Rule**: Approve loans only for new clients with an internal score ≥ 0.30.
    - **Impact**: Acceptance rate ~65%, default rate reduced by ~15%.
 
 2. **Loan Amount Cap**:
-   - **Rule**: Limit first-time loans to tally with client declared revenue by 30% and up to 40% if there is a valid proof
+   - **Rule**: Limit first-time loans to place priority on Low income clients.
    - **Impact**: Reduces potential losses by ~25%; builds client credit history.
+   
+## New Clients Revenue Segmentation {data-background-image="slidebg.png"}
+::: rows
+::: row
+```{r}
+# Summarize average recommended loan by score bins
+# Define score bins and risk categories based on recommendations
+data_new_clients <- data_new_clients %>%
+  mutate(
+    score_bins = cut(
+      score_internal,
+      breaks = c(0.1256, 0.2495, 0.3078, 0.3710, 0.6297), # Min, 25%, 50%, 75%, Max
+      labels = c("High Risk (0.13-0.25)", "Moderate Risk (0.25-0.31)", 
+                 "Low Risk (0.31-0.37)", "Very Low Risk (0.37-0.63)"),
+      include.lowest = TRUE
+    ),
+    risk_category = case_when(
+      score_bins == "High Risk (0.13-0.25)" ~ "High",
+      score_bins == "Moderate Risk (0.25-0.31)" ~ "Moderate",
+      score_bins == "Low Risk (0.31-0.37)" ~ "Low",
+      score_bins == "Very Low Risk (0.37-0.63)" ~ "Very Low",
+      TRUE ~ NA_character_
+    )
+  )
 
+# Remove rows with NA in score_bins
+data_new_clients <- data_new_clients %>% filter(!is.na(score_bins))
+
+declaredrev_recommendation <- data_new_clients %>% 
+  select(risk_category, recommended_loan, score_bins) %>%
+  group_by(score_bins, risk_category) %>%
+  summarise(declaredrev_recommended = mean(recommended_loan, na.rm = TRUE))
+
+
+# Plot recommended loan amounts by risk bins
+declaredrev_plot <- ggplot(declaredrev_recommendation, aes(x = risk_category, y = declaredrev_recommended, fill =score_bins )) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_fill_manual(values = c("red", "blue", "orange", "green")) +
+  labs(
+    title = "New clients Declared Revenue by Internal Score Bins",
+    x = "Internal Score Bins",
+    y = " Average Declared Revenue (₦)",
+    fill = "Risk Category"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+declaredrev_plot
+```
+::: 
+::: row
+**Observations**:
+- Revenue Exaggeration: Clients who default may inflate their declared revenue to qualify for higher loan amounts.
+- Insignificant Loan Amounts: Clients with high declared revenue may default because the loan amount is too small relative to their cash flow, leading to low repayment priority.
+- Focusing on Low-Income Clients: Low-income clients are more likely to value loans, as they may significantly impact their cash flow or business growth. They tend to repay promptly to maintain future access to credit.
+::: 
+::: 
 ## Lending Rules for Returning Clients {data-background-image="slidebg.png"}
 ### Proposed Lending Rules:
 
@@ -418,7 +512,7 @@ rules_table <- tibble(
   `Client Type` = c("New", "New", "Returning", "Returning"),
   Rule = c(
     "Minimum Internal Score ≥ 0.30",
-    "Loan Cap of ₦50,000",
+    "Loan Cap to favour low income clients",
     "Performance-Based Loan Scaling",
     "Penalty for Late Payments"
   ),
@@ -445,6 +539,12 @@ kable(rules_table, format = "html", col.names = c("Client Type", "Rule", "Ration
 - Implement the proposed rules for both new and returning clients.
 - Continuously monitor the impact of these rules on default rates, acceptance rates, and overall profitability.
 - Adjust thresholds and caps based on real-life business performance and market conditions.
+- Clients with lower declared revenue should be prioritized with higher loan-to-revenue ratios.
+- Clients with higher declared revenue should receive lower ratios to reduce over-reliance on exaggerated figures.
+Verification of Revenue:
+
+- Introduce verification checks (e.g., bank statements, business performance metrics) to validate declared revenue.
+- Penalize clients who consistently default despite high revenue.
 
 ## Thank You {data-background-image="bg.png"}
 ### Thank You for the opportunity!
