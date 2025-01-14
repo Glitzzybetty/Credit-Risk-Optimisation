@@ -250,12 +250,12 @@ Omotayo Ikudayisi
 <script>
 // Zoom-in effect on hover for visualizations
 document.querySelectorAll('img').forEach(function(img) {
-  img.style.transition = "transform 0.3s ease";
+  img.style.transition = "transform 0.3s ease"; // Smooth transition effect
   img.addEventListener('mouseover', function() {
-    img.style.transform = "scale(1.1)";
+    img.style.transform = "scale(1.4)"; // Scale up to 1.4x
   });
   img.addEventListener('mouseout', function() {
-    img.style.transform = "scale(1)";
+    img.style.transform = "scale(1)"; // Reset scale
   });
 });
 </script>
@@ -458,6 +458,18 @@ document.querySelectorAll('img').forEach(function(img) {
 </div>
 </div>
 <p>The visual shows that Higher cutoffs reduce acceptance rates but also lower default rates</p>
+<script>
+// Zoom-in effect on hover for visualizations
+document.querySelectorAll('img').forEach(function(img) {
+  img.style.transition = "transform 0.3s ease"; // Smooth transition effect
+  img.addEventListener('mouseover', function() {
+    img.style.transform = "scale(1.5)"; // Scale up to 1.8x
+  });
+  img.addEventListener('mouseout', function() {
+    img.style.transform = "scale(1)"; // Reset scale
+  });
+});
+</script>
 </div><div class="column">
 <ul>
 <li class="fragment"><p>Lower cutoffs (<strong>0.25</strong>) maximize growth but expose the portfolio to higher risks and potential losses.</p></li>
