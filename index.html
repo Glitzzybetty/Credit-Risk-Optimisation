@@ -460,22 +460,10 @@ document.querySelectorAll('img').forEach(function(img) {
 <p>The visual shows that Higher cutoffs reduce acceptance rates but also lower default rates</p>
 </div><div class="column">
 <ul>
-<li class="fragment"><strong>Key Observations</strong>:
-<ul>
-<li class="fragment">Lower cutoffs (<strong>0.25</strong>) maximize growth but expose the portfolio to higher risks and potential losses.</li>
-<li class="fragment">Higher cutoffs (<strong>0.40</strong>) minimize potential losses but significantly reduce the number of clients accepted.</li>
-<li class="fragment"><strong>Cutoff 0.30</strong> provides a balanced strategy:
-<ul>
-<li class="fragment">Acceptance Rate: <strong>31.00%</strong>.</li>
-<li class="fragment">Default Rate: <strong>41.51%</strong>.</li>
-<li class="fragment">Potential Loss: <strong>₦274,936</strong>.</li>
-</ul></li>
-</ul></li>
-<li class="fragment"><strong>Considerations for Grace Period</strong>:
-<ul>
-<li class="fragment">This analysis reflects a grace period of 7 days, adjusting for late payments in the pandemic year (2020).</li>
-<li class="fragment">Helps account for temporary repayment delays without unfairly penalizing clients.</li>
-</ul></li>
+<li class="fragment"><p>Lower cutoffs (<strong>0.25</strong>) maximize growth but expose the portfolio to higher risks and potential losses.</p></li>
+<li class="fragment"><p>Higher cutoffs (<strong>0.40</strong>) minimize potential losses but significantly reduce the number of clients accepted.</p></li>
+<li class="fragment"><p>Balance Strategy (<strong>0.30</strong>): accepts 31% clients, balancing manageable defaults (<strong>41.51%</strong>) with reduced losses.</p></li>
+<li class="fragment"><p><strong>Considerations</strong>:Grace period of 7 days, adjusting for late payments in the pandemic year (2020).This helps account for temporary repayment delays without unfairly penalizing clients.</p></li>
 </ul>
 </div></div>
 </section>
@@ -498,6 +486,9 @@ document.querySelectorAll('img').forEach(function(img) {
 <h2>New Clients Revenue Segmentation</h2>
 <div class="rows">
 <div class="row">
+<p><strong>Observations</strong>: Client risk tiers - High-risk (₦20,000 revenue, low scores), Moderate-risk (₦18,000, manageable risk), Low-risk (₦16,000, good repayment), Very Low-risk (₦15,000, least likely to default)</p>
+</div>
+<div class="row">
 <div class="cell">
 <div class="cell-output-display">
 <div>
@@ -507,9 +498,6 @@ document.querySelectorAll('img').forEach(function(img) {
 </div>
 </div>
 </div>
-</div>
-<div class="row">
-<p><strong>Observations</strong>: - Revenue Exaggeration: Clients who default may inflate their declared revenue to qualify for higher loan amounts. - Insignificant Loan Amounts: Clients with high declared revenue may default because the loan amount is too small relative to their cash flow, leading to low repayment priority. - Focusing on Low-Income Clients: Low-income clients are more likely to value loans, as they may significantly impact their cash flow or business growth. They tend to repay promptly to maintain future access to credit.</p>
 </div>
 </div>
 </section>
@@ -577,13 +565,13 @@ document.querySelectorAll('img').forEach(function(img) {
 <section id="recommendations" class="slide level2" data-background-image="slidebg.png">
 <h2>Recommendations</h2>
 <ul>
-<li class="fragment"><p>Implement the proposed rules for both new and returning clients.</p></li>
-<li class="fragment"><p>Continuously monitor the impact of these rules on default rates, acceptance rates, and overall profitability.</p></li>
-<li class="fragment"><p>Adjust thresholds and caps based on real-life business performance and market conditions.</p></li>
-<li class="fragment"><p>Clients with lower declared revenue should be prioritized with higher loan-to-revenue ratios.</p></li>
-<li class="fragment"><p>Clients with higher declared revenue should receive lower ratios to reduce over-reliance on exaggerated figures. Verification of Revenue:</p></li>
-<li class="fragment"><p>Introduce verification checks (e.g., bank statements, business performance metrics) to validate declared revenue.</p></li>
-<li class="fragment"><p>Penalize clients who consistently default despite high revenue.</p></li>
+<li class="fragment">Implement the proposed rules for both new and returning clients.</li>
+<li class="fragment">Continuously monitor the impact of these rules on default rates, acceptance rates, and overall profitability.</li>
+<li class="fragment">Adjust thresholds and caps based on real-life business performance and market conditions.</li>
+<li class="fragment">Clients with lower declared revenue should be prioritized with higher loan-to-revenue ratios, as they may significantly impact their cash flow or business growth. They tend to repay promptly to maintain future access to credit.</li>
+<li class="fragment">Clients with higher declared revenue should receive lower ratios to reduce over-reliance on exaggerated figures.</li>
+<li class="fragment">Introduce verification checks (e.g., bank statements, business performance metrics) to validate declared revenue.</li>
+<li class="fragment">Penalize clients who consistently default despite high revenue.</li>
 </ul>
 </section>
 <section id="thank-you" class="slide level2" data-background-image="bg.png">
