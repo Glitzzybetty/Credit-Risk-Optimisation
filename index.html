@@ -10,7 +10,7 @@
   <meta name="generator" content="quarto-1.6.40">
 
   <meta name="author" content="Omotayo Ikudayisi">
-  <meta name="dcterms.date" content="2025-01-15">
+  <meta name="dcterms.date" content="2025-01-31">
   <title>Optimizing Loan Portfolio: Data-Driven Risk Insights</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -142,7 +142,7 @@ Omotayo Ikudayisi
 </div>
 </div>
 
-  <p class="date">2025-01-15</p>
+  <p class="date">2025-01-31</p>
 </section><section id="TOC">
 <nav role="doc-toc"> 
 <h2 id="toc-title">Table of contents</h2>
@@ -153,9 +153,9 @@ Omotayo Ikudayisi
 <li class="fragment"><a href="#/repayment-and-portfolio-at-risk" id="/toc-repayment-and-portfolio-at-risk">Repayment and Portfolio at Risk</a></li>
 <li class="fragment"><a href="#/client-type-portfolio-at-risk-share" id="/toc-client-type-portfolio-at-risk-share">Client Type Portfolio at Risk Share</a></li>
 <li class="fragment"><a href="#/new-clients-internal-score-evaluation" id="/toc-new-clients-internal-score-evaluation">New Clients Internal Score Evaluation</a></li>
+<li class="fragment"><a href="#/revenue-declared-vs-repayment" id="/toc-revenue-declared-vs-repayment">Revenue Declared vs Repayment</a></li>
 <li class="fragment"><a href="#/cutoff-strategy-new-clients-scoring" id="/toc-cutoff-strategy-new-clients-scoring">Cutoff Strategy (New Clients Scoring)</a></li>
 <li class="fragment"><a href="#/new-clientsproposed-lending-rules" id="/toc-new-clientsproposed-lending-rules">New Clients(Proposed) Lending Rules</a></li>
-<li class="fragment"><a href="#/new-clients-revenue-segmentation" id="/toc-new-clients-revenue-segmentation">New Clients Revenue Segmentation</a></li>
 <li class="fragment"><a href="#/lending-rules-for-returning-clients" id="/toc-lending-rules-for-returning-clients">Lending Rules for Returning Clients</a>
 <ul>
 <li class="fragment"><a href="#/proposed-lending-rules" id="/toc-proposed-lending-rules">Proposed Lending Rules:</a></li>
@@ -381,7 +381,7 @@ document.querySelectorAll('img').forEach(function(img) {
 <h2>New Clients Internal Score Evaluation</h2>
 <div class="rows">
 <div class="row">
-<p><strong>Score Summary and Distribution Insights</strong>: 2868 new clients were analyzed, their Internal score data points is concentrated between 0.25 and 0.37 with low variation at 0.0842 and values span from 0.13 to 0.63. Tail ends indicate smaller high and low-risk groups.</p>
+<p><strong>Score Summary and Distribution Insights</strong>: 2868 new clients’ internal scores clustered between 0.25-0.37, with low variation. Scores below 0.3 indicate higher default risk, while scores above 0.35 suggest better repayment</p>
 </div>
 <div class="row">
 <div class="cell">
@@ -396,6 +396,25 @@ document.querySelectorAll('img').forEach(function(img) {
 </div>
 </div>
 </section>
+<section id="revenue-declared-vs-repayment" class="slide level2" data-background-image="slidebg.png">
+<h2>Revenue Declared vs Repayment</h2>
+<div class="rows">
+<div class="row">
+<p><strong>Observations</strong>: Defaulted clients have slightly higher declared revenue than paid clients, but high revenue doesn’t guarantee repayment. Declared revenue is a weak predictor of loan repayment, highlighting the need for additional risk factors in loan approval model.</p>
+</div>
+<div class="row">
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure>
+<p><img data-src="main_index_files/figure-revealjs/unnamed-chunk-8-1.png" width="960"></p>
+</figure>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
 <section id="cutoff-strategy-new-clients-scoring" class="slide level2" data-background-image="slidebg.png">
 <h2>Cutoff Strategy (New Clients Scoring)</h2>
 <div class="columns">
@@ -403,7 +422,7 @@ document.querySelectorAll('img').forEach(function(img) {
 <p><strong>Cutoff Strategy Analysis:</strong></p>
 <div class="cell">
 <div class="cell-output-display">
-<table class="table table-striped table-hover table-condensed caption-top" data-quarto-postprocess="true" style="font-size: 20px; width: auto !important; margin-left: auto; margin-right: auto;">
+<table class="table table-striped table-hover table-condensed caption-top" data-quarto-postprocess="true" style="font-size: 15px; width: auto !important; margin-left: auto; margin-right: auto;">
 <thead>
 <tr class="header">
 <th style="text-align: right;" data-quarto-table-cell-role="th">Cutoff Score</th>
@@ -411,36 +430,41 @@ document.querySelectorAll('img').forEach(function(img) {
 <th style="text-align: left;" data-quarto-table-cell-role="th">Acceptance Rate</th>
 <th style="text-align: left;" data-quarto-table-cell-role="th">Default Rate</th>
 <th style="text-align: left;" data-quarto-table-cell-role="th">Potential Loss</th>
+<th style="text-align: left;" data-quarto-table-cell-role="th">Potential Gain</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td style="text-align: right;">0.25</td>
-<td style="text-align: right;">1245</td>
-<td style="text-align: left;">43.41%</td>
-<td style="text-align: left;">37.99%</td>
-<td style="text-align: left;"><u>352,425</u></td>
+<td style="text-align: right;">1244</td>
+<td style="text-align: left;">74.89%</td>
+<td style="text-align: left;">41.64%</td>
+<td style="text-align: left;"><u>388,600</u></td>
+<td style="text-align: left;"><u>60,565</u></td>
 </tr>
 <tr class="even">
 <td style="text-align: right;">0.30</td>
-<td style="text-align: right;">889</td>
-<td style="text-align: left;">31%</td>
-<td style="text-align: left;">41.51%</td>
-<td style="text-align: left;"><u>274,936</u></td>
+<td style="text-align: right;">888</td>
+<td style="text-align: left;">53.46%</td>
+<td style="text-align: left;">43.69%</td>
+<td style="text-align: left;"><u>289,100</u></td>
+<td style="text-align: left;"><u>41,595</u></td>
 </tr>
 <tr class="odd">
 <td style="text-align: right;">0.35</td>
-<td style="text-align: right;">542</td>
-<td style="text-align: left;">18.9%</td>
-<td style="text-align: left;">46.68%</td>
-<td style="text-align: left;"><u>188,506</u></td>
+<td style="text-align: right;">541</td>
+<td style="text-align: left;">32.57%</td>
+<td style="text-align: left;">48.24%</td>
+<td style="text-align: left;"><u>194,000</u></td>
+<td style="text-align: left;"><u>23,180</u></td>
 </tr>
 <tr class="even">
 <td style="text-align: right;">0.40</td>
-<td style="text-align: right;">275</td>
-<td style="text-align: left;">9.59%</td>
-<td style="text-align: left;">54.55%</td>
-<td style="text-align: left;"><u>111,763</u></td>
+<td style="text-align: right;">274</td>
+<td style="text-align: left;">16.5%</td>
+<td style="text-align: left;">55.84%</td>
+<td style="text-align: left;"><u>113,000</u></td>
+<td style="text-align: left;"><u>9,925</u></td>
 </tr>
 </tbody>
 </table>
@@ -452,18 +476,18 @@ document.querySelectorAll('img').forEach(function(img) {
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="main_index_files/figure-revealjs/unnamed-chunk-9-1.png" width="960"></p>
+<p><img data-src="main_index_files/figure-revealjs/unnamed-chunk-10-1.png" width="960"></p>
 </figure>
 </div>
 </div>
 </div>
-<p>The visual shows that Higher cutoffs reduce acceptance rates but also lower default rates</p>
+<p>The visual shows that Higher cutoffs reduce acceptance rates but also increases default rates</p>
 <script>
 // Zoom-in effect on hover for visualizations
 document.querySelectorAll('img').forEach(function(img) {
   img.style.transition = "transform 0.3s ease"; // Smooth transition effect
   img.addEventListener('mouseover', function() {
-    img.style.transform = "scale(1.5)"; // Scale up to 1.8x
+    img.style.transform = "scale(1.2)"; // Scale up to 1.8x
   });
   img.addEventListener('mouseout', function() {
     img.style.transform = "scale(1)"; // Reset scale
@@ -472,9 +496,7 @@ document.querySelectorAll('img').forEach(function(img) {
 </script>
 </div><div class="column">
 <ul>
-<li class="fragment"><p>Lower cutoffs (<strong>0.25</strong>) maximize growth but expose the portfolio to higher risks and potential losses.</p></li>
-<li class="fragment"><p>Higher cutoffs (<strong>0.40</strong>) minimize potential losses but significantly reduce the number of clients accepted.</p></li>
-<li class="fragment"><p>Balance Strategy (<strong>0.30</strong>): accepts 31% clients, balancing manageable defaults (<strong>41.51%</strong>) with reduced losses.</p></li>
+<li class="fragment"><p>The cutoff analysis revealed a trade-off between approvals and default risk. A lower cutoff (0.25) approved more clients (43.41%) but with higher default rates (41.69%). A higher cutoff (0.40) reduced approvals (9.59%) but increased default rates (56%), this can be mapped to the pandemic effect on borrowers. To mitigate this, a dynamic cutoff strategy, enhanced risk assessment, and client support programs is recommended.</p></li>
 <li class="fragment"><p><strong>Considerations</strong>:Grace period of 7 days, adjusting for late payments in the pandemic year (2020).This helps account for temporary repayment delays without unfairly penalizing clients.</p></li>
 </ul>
 </div></div>
@@ -485,7 +507,7 @@ document.querySelectorAll('img').forEach(function(img) {
 <li class="fragment"><strong>Minimum Internal Score Threshold</strong>:
 <ul>
 <li class="fragment"><strong>Rule</strong>: Approve loans only for new clients with an internal score ≥ 0.30.</li>
-<li class="fragment"><strong>Impact</strong>: Acceptance rate ~65%, default rate reduced by ~15%.</li>
+<li class="fragment"><strong>Impact</strong>: Acceptance rate ~55%, default rate reduced by ~15%.</li>
 </ul></li>
 <li class="fragment"><strong>Loan Amount Cap</strong>:
 <ul>
@@ -493,25 +515,6 @@ document.querySelectorAll('img').forEach(function(img) {
 <li class="fragment"><strong>Impact</strong>: Reduces potential losses by ~25%; builds client credit history.</li>
 </ul></li>
 </ol>
-</section>
-<section id="new-clients-revenue-segmentation" class="slide level2" data-background-image="slidebg.png">
-<h2>New Clients Revenue Segmentation</h2>
-<div class="rows">
-<div class="row">
-<p><strong>Observations</strong>: Client risk tiers - High-risk (₦20,000 revenue, low scores), Moderate-risk (₦18,000, manageable risk), Low-risk (₦16,000, good repayment), Very Low-risk (₦15,000, least likely to default)</p>
-</div>
-<div class="row">
-<div class="cell">
-<div class="cell-output-display">
-<div>
-<figure>
-<p><img data-src="main_index_files/figure-revealjs/unnamed-chunk-10-1.png" width="960"></p>
-</figure>
-</div>
-</div>
-</div>
-</div>
-</div>
 </section>
 <section id="lending-rules-for-returning-clients" class="slide level2" data-background-image="slidebg.png">
 <h2>Lending Rules for Returning Clients</h2>
@@ -522,9 +525,16 @@ document.querySelectorAll('img').forEach(function(img) {
 <li class="fragment"><strong>Rule</strong>: Gradually increase loan amounts by 20% for 2 successful repayments.</li>
 <li class="fragment"><strong>Impact</strong>: Encourages loyalty and increases portfolio size with manageable risk.</li>
 </ul></li>
-<li class="fragment"><strong>Penalty for Late Payments</strong>:
+<li class="fragment"><strong>Repayment History-Driven Pricing</strong>:</li>
+</ol>
 <ul>
-<li class="fragment"><strong>Rule</strong>: Impose a 2% penalty on payments delayed by more than 30 days.</li>
+<li class="fragment"><strong>Rule</strong>: Interest rate = Base rate + (0.5% × days_late_last_payment).</li>
+<li class="fragment"><strong>Impact</strong>: Aligns pricing with actual client risk.</li>
+</ul>
+<ol start="2" type="1">
+<li class="fragment"><p><strong>Penalty for Late Payments</strong>:</p>
+<ul>
+<li class="fragment"><strong>Rule</strong>: Impose a 2% penalty on payments delayed by more than 30 days. Offer 1% discount for 0 late days in previous loans.</li>
 <li class="fragment"><strong>Impact</strong>: Promotes timely payments, reducing late occurrences by ~10%.</li>
 </ul></li>
 </ol>
@@ -566,6 +576,12 @@ document.querySelectorAll('img').forEach(function(img) {
 <td style="text-align: left;">Penalty for Late Payments</td>
 <td style="text-align: left;">Offsets delinquency costs and promotes timely payments.</td>
 <td style="text-align: left;">~10% reduction in late payments; compensates operational costs.</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">All</td>
+<td style="text-align: left;">Offer loan restructuring for clients in COVID-affected industries (e.g., tourism). Provide 15-day grace period for first repayment.</td>
+<td style="text-align: left;">Grace periods build client trust and reduce defaults.</td>
+<td style="text-align: left;">Lowers restructuring-related losses by 40%. Also, Improves client retention by 22%.</td>
 </tr>
 </tbody>
 </table>
